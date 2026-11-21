@@ -12,7 +12,7 @@ private func symbolEffect(_ json: String) throws -> StableBar.SymbolEffectConfig
 }
 
 private func errorMessage(_ error: (any Error)?, for key: String) -> String? {
-    guard let error, case let DecodingError.dataCorruptedError(context) = error else { return nil }
+    guard let error, case let DecodingError.dataCorrupted(context) = error else { return nil }
     return context.codingPath.last?.stringValue == key ? context.debugDescription : nil
 }
 
