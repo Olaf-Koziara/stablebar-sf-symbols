@@ -7,12 +7,12 @@ private func block(_ json: String) throws -> PopupBlock {
     try JSONDecoder().decode(PopupBlock.self, from: Data(json.utf8))
 }
 
-private func symbolEffect(_ json: String) throws -> SymbolEffectConfiguration {
-    try JSONDecoder().decode(SymbolEffectConfiguration.self, from: Data(json.utf8))
+private func symbolEffect(_ json: String) throws -> StableBar.SymbolEffectConfiguration {
+    try JSONDecoder().decode(StableBar.SymbolEffectConfiguration.self, from: Data(json.utf8))
 }
 
-private func errorMessage(_ error: any Error, for key: String) -> String? {
-    guard case let DecodingError.dataCorruptedError(_, context) = error else { return nil }
+private func errorMessage(_ error: (any Error)?, for key: String) -> String? {
+    guard let error, case let DecodingError.dataCorruptedError(context) = error else { return nil }
     return context.codingPath.last?.stringValue == key ? context.debugDescription : nil
 }
 
