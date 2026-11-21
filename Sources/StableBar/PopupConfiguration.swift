@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 struct PopupConfiguration: Decodable, Sendable {
     let height: Double?
@@ -93,6 +94,142 @@ extension WidgetStyle {
         inheriting(defaults.withoutSpacing)
     }
 }
+
+struct SymbolEffectConfiguration: Decodable, Equatable, Sendable {
+    enum Effect: String, Decodable, Sendable { case bounce, pulse, scale, variableColor, rotate, wiggle, breathe, appear, disappear, drawOn, drawOff }
+    enum RepeatBehavior: Equatable, Sendable { case none, continuous, periodic, count(Int) }
+
+    let effect: Effect
+    let variant: String?
+    let angle: Double?
+    let repeatBehavior: RepeatBehavior
+    let speed: Double
+    let delay: Double?
+    let activeSource: String?
+    let valueSource: String?
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case effect, variant, angle, speed, delay, activeSource, valueSource
+        case repeatCount = "repeat"
+    }
+
+    init(from decoder: Decoder) throws {
+        try decoder.rejectUnknownKeys(CodingKeys.self)
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        effect = try values.decode(Effect.self, forKey: .effect)
+        variant = try values.decodeIfPresent(String.self, forKey: .variant)
+        angle = try values.decodeIfPresent(Double.self, forKey: .angle)
+        speed = try values.decodeIfPresent(Double.self, forKey: .speed) ?? 1
+        delay = try values.decodeIfPresent(Double.self, forKey: .delay)
+        activeSource = try values.decodeIfPresent(String.self, forKey: .activeSource)
+        valueSource = try values.decodeIfPresent(String.self, forKey: .valueSource)
+
+        guard speed > 0, speed.isFinite else {
+            throw DecodingError.dataCorruptedError(forKey: .speed, in: values, debugDescription: "Symbol effect speed must be greater than zero.")
+        }
+        if let delay, delay < 0 || !delay.isFinite {
+            throw DecodingError.dataCorruptedError(forKey: .delay, in: values, debugDescription: "Symbol effect delay must not be negative.")
+        }
+        if activeSource != nil, valueSource != nil {
+            throw DecodingError.dataCorruptedError(forKey: .valueSource, in: values, debugDescription: "A symbol effect cannot combine activeSource and valueSource.")
+        }
+        if values.contains(.repeatCount), try !values.decodeNil(forKey: .repeatCount) {
+            if let name = try? values.decode(String.self, forKey: .repeatCount) {
+                switch name {
+                case "continuous": repeatBehavior = .continuous
+                case "periodic": repeatBehavior = .periodic
+                default: throw DecodingError.dataCorruptedError(forKey: .repeatCount, in: values, debugDescription: "Use continuous, periodic or a positive repeat count.")
+                }
+            } else if let count = try? values.decode(Int.self, forKey: .repeatCount), count > 0 {
+                repeatBehavior = .count(count)
+            } else {
+                throw DecodingError.dataCorruptedError(forKey: .repeatCount, in: values, debugDescription: "Use continuous, periodic or a positive repeat count.")
+            }
+        } else {
+            repeatBehavior = valueSource == nil ? .continuous : .none
+        }
+        if let variant, !Self.supports(variant, for: effect) {
+            throw DecodingError.dataCorruptedError(forKey: .variant, in: values, debugDescription: "The variant is not supported by this symbol effect.")
+        }
+        if (variant == "custom") != (angle != nil) {
+            throw DecodingError.dataCorruptedError(forKey: .angle, in: values, debugDescription: "Specify angle only with the custom wiggle variant.")
+        }
+        if valueSource != nil, !Self.supportsDiscrete(effect) {
+            throw DecodingError.dataCorruptedError(forKey: .valueSource, in: values, debugDescription: "This symbol effect cannot be triggered by a changing value.")
+        }
+        if delay != nil, repeatBehavior != .periodic {
+            throw DecodingError.dataCorruptedError(forKey: .delay, in: values, debugDescription: "Delay applies only to periodic repetition.")
+        }
+        if delay != nil, #unavailable(macOS 15.0) {
+            throw DecodingError.dataCorruptedError(forKey: .delay, in: values, debugDescription: "Repeat delays require macOS 15 or later.")
+        }
+        switch effect {
+        case .rotate, .wiggle, .breathe:
+            guard #available(macOS 15.0, *) else {
+                throw DecodingError.dataCorruptedError(forKey: .effect, in: values, debugDescription: "This symbol effect requires macOS 15 or later.")
+            }
+        case .drawOn, .drawOff:
+            guard #available(macOS 26.0, *) else {
+                throw DecodingError.dataCorruptedError(forKey: .effect, in: values, debugDescription: "This symbol effect requires macOS 26 or later.")
+            }
+        case .bounce where valueSource == nil:
+            guard #available(macOS 15.0, *) else {
+                throw DecodingError.dataCorruptedError(forKey: .effect, in: values, debugDescription: "An indefinite bounce effect requires macOS 15 or later; use valueSource on macOS 14.")
+            }
+        default: break
+        }
+        if repeatBehavior == .periodic {
+            guard #available(macOS 15.0, *) else {
+                throw DecodingError.dataCorruptedError(forKey: .repeatCount, in: values, debugDescription: "Periodic repetition requires macOS 15 or later.")
+            }
+        }
+    }
+
+    var options: SymbolEffectOptions {
+        var options = SymbolEffectOptions.default.speed(speed)
+        switch repeatBehavior {
+        case .none:
+            options = .nonRepeating.speed(speed)
+        case .continuous:
+            if #available(macOS 15.0, *) { options = options.repeat(.continuous) }
+            else { options = .repeating.speed(speed) }
+        case .periodic:
+            if #available(macOS 15.0, *) { options = options.repeat(.periodic(nil, delay: delay)) }
+            else { options = .nonRepeating.speed(speed) }
+        case let .count(count):
+            if #available(macOS 15.0, *) {
+                if let delay { options = options.repeat(.periodic(count, delay: delay)) }
+                else { options = options.repeat(.periodic(count)) }
+            } else {
+                options = options.repeat(count)
+            }
+        }
+        return options
+    }
+
+    private static func supportsDiscrete(_ effect: Effect) -> Bool {
+        [.bounce, .pulse, .variableColor, .rotate, .wiggle, .breathe].contains(effect)
+    }
+
+
+    private static func supports(_ variant: String, for effect: Effect) -> Bool {
+        switch effect {
+        case .bounce, .scale, .appear, .disappear: ["up", "down", "byLayer", "wholeSymbol"].contains(variant)
+        case .pulse: ["byLayer", "wholeSymbol"].contains(variant)
+        case .variableColor: ["reversing", "nonReversing", "cumulative", "iterative", "hideInactiveLayers", "dimInactiveLayers"].contains(variant)
+        case .rotate: ["clockwise", "counterClockwise", "byLayer", "wholeSymbol"].contains(variant)
+        case .wiggle: ["clockwise", "counterClockwise", "left", "right", "up", "down", "forward", "backward", "byLayer", "wholeSymbol", "custom"].contains(variant)
+        case .breathe: ["pulse", "plain", "byLayer", "wholeSymbol"].contains(variant)
+        case .drawOn: ["byLayer", "wholeSymbol", "individually"].contains(variant)
+        case .drawOff: ["byLayer", "wholeSymbol", "individually", "reversed", "nonReversed"].contains(variant)
+        }
+    }
+}
+
+
+enum SymbolContentTransition: String, Decodable, Sendable { case automatic, replace, downUp, upUp, offUp, magicReplace }
+ 
+
 
 indirect enum PopupContent: Sendable {
     case row([PopupBlock])
@@ -193,12 +330,15 @@ struct PopupBlock: Decodable, Sendable {
     let widestSymbol: String?
     /// How a text, field or symbol block shows changed content; nil uses its widget's.
     let transition: WidgetTransition?
+    let symbolEffect: SymbolEffectConfiguration?
+    let symbolTransition: SymbolContentTransition?
 
     enum CodingKeys: String, CodingKey, CaseIterable {
         case type, role, style, alignment, children, text, field, height, source, row, orientation, title, onClick
         case path, fit, name, animation, styleSource, styleField, onClickField, lineWidth
         case hideWhenEmpty, showWhen, hideWhen, scrollSpeed, min, max, step, onChange, options, searchFields, open, openField, quitField
         case openMenuBarItem, selectInputSourceField, selectOutputDeviceField, view, transition
+        case symbolEffect, symbolTransition
         case placeholder, onSubmit, autofocus, wrap, maxHeight, markdown, shimmer, groupsSource, optionsSource, levelsSource, endStop
         case fitWidth, sendButton, busy, onStop, starsSource, onStar, filled, icon, gap, segments, set
     }
@@ -230,6 +370,8 @@ struct PopupBlock: Decodable, Sendable {
         markdown = false
         fitsWidth = false
         shimmer = false
+        symbolEffect = nil
+        symbolTransition = nil
         self.monospacedDigits = monospacedDigits
         self.keepsLineHeight = keepsLineHeight
         self.widestSymbol = widestSymbol
@@ -292,6 +434,8 @@ struct PopupBlock: Decodable, Sendable {
         markdown = try values.decodeIfPresent(Bool.self, forKey: .markdown) ?? false
         fitsWidth = try values.decodeIfPresent(Bool.self, forKey: .fitWidth) ?? false
         shimmer = try values.decodeIfPresent(Bool.self, forKey: .shimmer) ?? false
+        symbolEffect = try values.decodeIfPresent(SymbolEffectConfiguration.self, forKey: .symbolEffect)
+        symbolTransition = try values.decodeIfPresent(SymbolContentTransition.self, forKey: .symbolTransition)
         monospacedDigits = true
         keepsLineHeight = false
         widestSymbol = nil
@@ -415,6 +559,12 @@ struct PopupBlock: Decodable, Sendable {
             content = .battery(source: try values.decodeIfPresent(String.self, forKey: .source) ?? "percent")
         default:
             throw DecodingError.dataCorruptedError(forKey: .type, in: values, debugDescription: "Unknown popup block type.")
+        }
+        if symbolEffect != nil || symbolTransition != nil {
+            guard case .symbol = content else {
+                throw DecodingError.dataCorruptedError(forKey: symbolEffect != nil ? .symbolEffect : .symbolTransition, in: values,
+                                                       debugDescription: "Symbol effects and symbol transitions apply only to symbol blocks.")
+            }
         }
         if transition != nil {
             switch content {

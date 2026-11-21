@@ -272,6 +272,193 @@ struct TransitioningContent<Value: Hashable>: ViewModifier {
     }
 }
 
+struct SymbolEffectViewModifier: ViewModifier {
+    let configuration: SymbolEffectConfiguration
+    let fields: [String: String]
+
+    private var active: Bool {
+        guard let source = configuration.activeSource else { return configuration.valueSource == nil }
+        let value = fields[source, default: ""]
+        return value == "true" || value == "1"
+    }
+
+    private var trigger: String {
+        configuration.valueSource.flatMap { fields[$0] } ?? ""
+    }
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        let options = configuration.options
+        switch configuration.effect {
+        case .bounce:
+            if configuration.valueSource != nil {
+                switch configuration.variant {
+                case "up": content.symbolEffect(.bounce.up, options: options, value: trigger)
+                case "down": content.symbolEffect(.bounce.down, options: options, value: trigger)
+                case "wholeSymbol": content.symbolEffect(.bounce.wholeSymbol, options: options, value: trigger)
+                default: content.symbolEffect(.bounce.byLayer, options: options, value: trigger)
+                }
+            } else if #available(macOS 15.0, *) {
+                switch configuration.variant {
+                case "up": content.symbolEffect(.bounce.up, options: options, isActive: active)
+                case "down": content.symbolEffect(.bounce.down, options: options, isActive: active)
+                case "wholeSymbol": content.symbolEffect(.bounce.wholeSymbol, options: options, isActive: active)
+                default: content.symbolEffect(.bounce.byLayer, options: options, isActive: active)
+                }
+            } else if configuration.activeSource != nil {
+                content.symbolEffect(.bounce, options: options, value: trigger)
+            } else {
+                content
+            }
+        case .pulse:
+            if configuration.valueSource != nil {
+                if configuration.variant == "wholeSymbol" { content.symbolEffect(.pulse.wholeSymbol, options: options, value: trigger) }
+                else { content.symbolEffect(.pulse.byLayer, options: options, value: trigger) }
+            } else if configuration.variant == "wholeSymbol" {
+                content.symbolEffect(.pulse.wholeSymbol, options: options, isActive: active)
+            } else {
+                content.symbolEffect(.pulse.byLayer, options: options, isActive: active)
+            }
+        case .scale:
+            switch configuration.variant {
+            case "up": content.symbolEffect(.scale.up, options: options, isActive: active)
+            case "down": content.symbolEffect(.scale.down, options: options, isActive: active)
+            case "wholeSymbol": content.symbolEffect(.scale.wholeSymbol, options: options, isActive: active)
+            default: content.symbolEffect(.scale.byLayer, options: options, isActive: active)
+            }
+        case .variableColor:
+            if configuration.valueSource != nil {
+                switch configuration.variant {
+                case "reversing": content.symbolEffect(.variableColor.reversing, options: options, value: trigger)
+                case "nonReversing": content.symbolEffect(.variableColor.nonReversing, options: options, value: trigger)
+                case "cumulative": content.symbolEffect(.variableColor.cumulative, options: options, value: trigger)
+                case "iterative": content.symbolEffect(.variableColor.iterative, options: options, value: trigger)
+                case "hideInactiveLayers": content.symbolEffect(.variableColor.hideInactiveLayers, options: options, value: trigger)
+                case "dimInactiveLayers": content.symbolEffect(.variableColor.dimInactiveLayers, options: options, value: trigger)
+                default: content.symbolEffect(.variableColor, options: options, value: trigger)
+                }
+            } else {
+                switch configuration.variant {
+                case "reversing": content.symbolEffect(.variableColor.reversing, options: options, isActive: active)
+                case "nonReversing": content.symbolEffect(.variableColor.nonReversing, options: options, isActive: active)
+                case "cumulative": content.symbolEffect(.variableColor.cumulative, options: options, isActive: active)
+                case "iterative": content.symbolEffect(.variableColor.iterative, options: options, isActive: active)
+                case "hideInactiveLayers": content.symbolEffect(.variableColor.hideInactiveLayers, options: options, isActive: active)
+                case "dimInactiveLayers": content.symbolEffect(.variableColor.dimInactiveLayers, options: options, isActive: active)
+                default: content.symbolEffect(.variableColor, options: options, isActive: active)
+                }
+            }
+        case .rotate:
+            if #available(macOS 15.0, *) {
+                if configuration.valueSource != nil {
+                    switch configuration.variant {
+                    case "clockwise": content.symbolEffect(.rotate.clockwise, options: options, value: trigger)
+                    case "counterClockwise": content.symbolEffect(.rotate.counterClockwise, options: options, value: trigger)
+                    case "wholeSymbol": content.symbolEffect(.rotate.wholeSymbol, options: options, value: trigger)
+                    default: content.symbolEffect(.rotate.byLayer, options: options, value: trigger)
+                    }
+                } else {
+                    switch configuration.variant {
+                    case "clockwise": content.symbolEffect(.rotate.clockwise, options: options, isActive: active)
+                    case "counterClockwise": content.symbolEffect(.rotate.counterClockwise, options: options, isActive: active)
+                    case "wholeSymbol": content.symbolEffect(.rotate.wholeSymbol, options: options, isActive: active)
+                    default: content.symbolEffect(.rotate.byLayer, options: options, isActive: active)
+                    }
+                }
+            } else { content }
+        case .wiggle:
+            if #available(macOS 15.0, *) {
+                if configuration.valueSource != nil {
+                    switch configuration.variant {
+                    case "clockwise": content.symbolEffect(.wiggle.clockwise, options: options, value: trigger)
+                    case "counterClockwise": content.symbolEffect(.wiggle.counterClockwise, options: options, value: trigger)
+                    case "left": content.symbolEffect(.wiggle.left, options: options, value: trigger)
+                    case "right": content.symbolEffect(.wiggle.right, options: options, value: trigger)
+                    case "up": content.symbolEffect(.wiggle.up, options: options, value: trigger)
+                    case "down": content.symbolEffect(.wiggle.down, options: options, value: trigger)
+                    case "forward": content.symbolEffect(.wiggle.forward, options: options, value: trigger)
+                    case "backward": content.symbolEffect(.wiggle.backward, options: options, value: trigger)
+                    case "custom": content.symbolEffect(.wiggle.custom(angle: .radians(configuration.angle ?? 0)), options: options, value: trigger)
+                    case "wholeSymbol": content.symbolEffect(.wiggle.wholeSymbol, options: options, value: trigger)
+                    default: content.symbolEffect(.wiggle.byLayer, options: options, value: trigger)
+                    }
+                } else {
+                    switch configuration.variant {
+                    case "clockwise": content.symbolEffect(.wiggle.clockwise, options: options, isActive: active)
+                    case "counterClockwise": content.symbolEffect(.wiggle.counterClockwise, options: options, isActive: active)
+                    case "left": content.symbolEffect(.wiggle.left, options: options, isActive: active)
+                    case "right": content.symbolEffect(.wiggle.right, options: options, isActive: active)
+                    case "up": content.symbolEffect(.wiggle.up, options: options, isActive: active)
+                    case "down": content.symbolEffect(.wiggle.down, options: options, isActive: active)
+                    case "forward": content.symbolEffect(.wiggle.forward, options: options, isActive: active)
+                    case "backward": content.symbolEffect(.wiggle.backward, options: options, isActive: active)
+                    case "custom": content.symbolEffect(.wiggle.custom(angle: .radians(configuration.angle ?? 0)), options: options, isActive: active)
+                    case "wholeSymbol": content.symbolEffect(.wiggle.wholeSymbol, options: options, isActive: active)
+                    default: content.symbolEffect(.wiggle.byLayer, options: options, isActive: active)
+                    }
+                }
+            } else { content }
+        case .breathe:
+            if #available(macOS 15.0, *) {
+                if configuration.valueSource != nil {
+                    if configuration.variant == "plain" { content.symbolEffect(.breathe.plain, options: options, value: trigger) }
+                    else if configuration.variant == "wholeSymbol" { content.symbolEffect(.breathe.wholeSymbol, options: options, value: trigger) }
+                    else if configuration.variant == "byLayer" { content.symbolEffect(.breathe.byLayer, options: options, value: trigger) }
+                    else { content.symbolEffect(.breathe.pulse, options: options, value: trigger) }
+                } else if configuration.variant == "plain" { content.symbolEffect(.breathe.plain, options: options, isActive: active) }
+                else if configuration.variant == "wholeSymbol" { content.symbolEffect(.breathe.wholeSymbol, options: options, isActive: active) }
+                else if configuration.variant == "byLayer" { content.symbolEffect(.breathe.byLayer, options: options, isActive: active) }
+                else { content.symbolEffect(.breathe.pulse, options: options, isActive: active) }
+            } else { content }
+        case .drawOn:
+            if #available(macOS 26.0, *) {
+                if configuration.variant == "individually" { content.symbolEffect(.drawOn.individually, options: options, isActive: active) }
+                else if configuration.variant == "wholeSymbol" { content.symbolEffect(.drawOn.wholeSymbol, options: options, isActive: active) }
+                else { content.symbolEffect(.drawOn.byLayer, options: options, isActive: active) }
+            } else { content }
+        case .drawOff:
+            if #available(macOS 26.0, *) {
+                if configuration.variant == "individually" { content.symbolEffect(.drawOff.individually, options: options, isActive: active) }
+                else if configuration.variant == "wholeSymbol" { content.symbolEffect(.drawOff.wholeSymbol, options: options, isActive: active) }
+                else { content.symbolEffect(.drawOff.byLayer, options: options, isActive: active) }
+            } else { content }
+        case .appear:
+            if #available(macOS 15.0, *) {
+                switch configuration.variant {
+                case "up": content.symbolEffect(.appear.up, options: options, isActive: active)
+                case "down": content.symbolEffect(.appear.down, options: options, isActive: active)
+                case "wholeSymbol": content.symbolEffect(.appear.wholeSymbol, options: options, isActive: active)
+                default: content.symbolEffect(.appear.byLayer, options: options, isActive: active)
+                }
+            } else { content }
+        case .disappear:
+            if #available(macOS 15.0, *) {
+                switch configuration.variant {
+                case "up": content.symbolEffect(.disappear.up, options: options, isActive: active)
+                case "down": content.symbolEffect(.disappear.down, options: options, isActive: active)
+                case "wholeSymbol": content.symbolEffect(.disappear.wholeSymbol, options: options, isActive: active)
+                default: content.symbolEffect(.disappear.byLayer, options: options, isActive: active)
+                }
+            } else { content }
+        }
+    }
+}
+
+extension SymbolContentTransition {
+    var value: ContentTransition {
+        switch self {
+        case .automatic: .symbolEffect(.automatic)
+        case .replace: .symbolEffect(.replace)
+        case .downUp: .symbolEffect(.replace.downUp)
+        case .upUp: .symbolEffect(.replace.upUp)
+        case .offUp: .symbolEffect(.replace.offUp)
+        case .magicReplace:
+            if #available(macOS 15.0, *) { .symbolEffect(.replace.magic(fallback: .replace)) }
+            else { .symbolEffect(.replace) }
+        }
+    }
+}
+
 /// Hands the content of a text, field or symbol block the transition and animation it shows: the
 /// block's own, else the widget's, and no transition under Reduce Motion or in the bar's measuring
 /// copy, which never moves.
@@ -301,6 +488,7 @@ struct PopupBlockView: View {
     @State private var query = ""
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.popupFillsHeight) private var fillsHeight
+    @Environment(\.measuringBarWidths) private var measuring
 
     /// `pointerInside` starts the block with the pointer over it; tests use it, as drawing has no pointer.
     init(block: PopupBlock, inheritedStyle: WidgetStyle, fields: [String: String], context: BlockContext, pointerInside: Bool = false,
@@ -649,9 +837,21 @@ struct PopupBlockView: View {
             ZStack {
                 if let widest = block.widestSymbol { Image(systemName: widest).font(.system(size: appearance.iconSize)).hidden() }
                 ResolvedBlockMotion(motion: context.motion, block: block) { transition, animation in
-                    Image(systemName: symbol)
+                    let base = Image(systemName: symbol)
                         .font(.system(size: appearance.iconSize))
-                        .modifier(TransitioningContent(value: symbol, transition: transition, animation: animation, numeric: false))
+                    let rendered = Group {
+                        if let symbolTransition = block.symbolTransition, !(reduceMotion || measuring) {
+                            base.contentTransition(symbolTransition.value).animation(animation.value, value: symbol)
+                        } else {
+                            base.modifier(TransitioningContent(value: symbol, transition: transition, animation: animation, numeric: false))
+                        }
+                    }
+                    .symbolEffectsRemoved(reduceMotion || measuring)
+                    if let effect = block.symbolEffect {
+                        rendered.modifier(SymbolEffectViewModifier(configuration: effect, fields: fields))
+                    } else {
+                        rendered
+                    }
                 }
             }
         case let .image(path, source, fit):

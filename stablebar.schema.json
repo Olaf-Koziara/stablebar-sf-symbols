@@ -1174,6 +1174,42 @@
           "$ref": "#/definitions/transition",
           "description": "For text, field and symbol blocks; defaults to the widget's."
         },
+        "symbolEffect": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "effect": {
+              "anyOf": [
+                {"enum": ["bounce", "pulse", "scale", "variableColor", "rotate", "wiggle", "breathe", "appear", "disappear", "drawOn", "drawOff"]},
+                {"$ref": "#/definitions/reference"},
+                {"type": "null"}
+              ]
+            },
+            "variant": {"$ref": "#/definitions/string"},
+            "angle": {"$ref": "#/definitions/number"},
+            "repeat": {
+              "anyOf": [
+                {"enum": ["continuous", "periodic"]},
+                {"type": "integer", "minimum": 1},
+                {"$ref": "#/definitions/reference"},
+                {"type": "null"}
+              ]
+            },
+            "speed": {"$ref": "#/definitions/number"},
+            "delay": {"$ref": "#/definitions/number"},
+            "activeSource": {"$ref": "#/definitions/string"},
+            "valueSource": {"$ref": "#/definitions/string"}
+          },
+          "description": "For symbol blocks: animate the SF Symbol with a SwiftUI symbol effect. Effects that require macOS 15 and later (rotate, wiggle, breathe) or macOS 26 and later (drawOn, drawOff) only run where the system supports them; repeat delays require macOS 15 and later."
+        },
+        "symbolTransition": {
+          "anyOf": [
+            {"enum": ["automatic", "replace", "downUp", "upUp", "offUp", "magicReplace"]},
+            {"$ref": "#/definitions/reference"},
+            {"type": "null"}
+          ],
+          "description": "For symbol blocks: how the symbol morphs when its name changes, instead of the block's transition."
+        },
         "min": {
           "$ref": "#/definitions/number"
         },
